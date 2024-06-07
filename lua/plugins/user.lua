@@ -1,4 +1,4 @@
-if true then return {} end -- WARN: REMOVE THIS LINE TO ACTIVATE THIS FILE
+-- if true then return {} end -- WARN: REMOVE THIS LINE TO ACTIVATE THIS FILE
 
 -- You can also add or configure plugins by creating files in this `plugins/` folder
 -- Here are some examples:
@@ -8,50 +8,76 @@ return {
 
   -- == Examples of Adding Plugins ==
 
-  "andweeb/presence.nvim",
-  {
-    "ray-x/lsp_signature.nvim",
-    event = "BufRead",
-    config = function() require("lsp_signature").setup() end,
-  },
+  -- "andweeb/presence.nvim",
+  -- {
+  --   "ray-x/lsp_signature.nvim",
+  --   event = "BufRead",
+  --   config = function() require("lsp_signature").setup() end,
+  -- },
 
   -- == Examples of Overriding Plugins ==
 
-  -- customize alpha options
-  {
-    "goolord/alpha-nvim",
-    opts = function(_, opts)
-      -- customize the dashboard header
-      opts.section.header.val = {
-        " █████  ███████ ████████ ██████   ██████",
-        "██   ██ ██         ██    ██   ██ ██    ██",
-        "███████ ███████    ██    ██████  ██    ██",
-        "██   ██      ██    ██    ██   ██ ██    ██",
-        "██   ██ ███████    ██    ██   ██  ██████",
-        " ",
-        "    ███    ██ ██    ██ ██ ███    ███",
-        "    ████   ██ ██    ██ ██ ████  ████",
-        "    ██ ██  ██ ██    ██ ██ ██ ████ ██",
-        "    ██  ██ ██  ██  ██  ██ ██  ██  ██",
-        "    ██   ████   ████   ██ ██      ██",
-      }
-      return opts
-    end,
-  },
-
-  -- You can disable default plugins as follows:
+  { "goolord/alpha-nvim", enabled = false },
   { "max397574/better-escape.nvim", enabled = false },
+  { "lukas-reineke/indent-blankline.nvim", enabled = false },
 
-  -- You can also easily customize additional setup of plugins that is outside of the plugin's setup call
   {
-    "L3MON4D3/LuaSnip",
-    config = function(plugin, opts)
-      require "astronvim.plugins.configs.luasnip"(plugin, opts) -- include the default astronvim config that calls the setup call
-      -- add more custom luasnip configuration such as filetype extend or custom snippets
-      local luasnip = require "luasnip"
-      luasnip.filetype_extend("javascript", { "javascriptreact" })
-    end,
+    "rcarriga/nvim-notify",
+    opts = {
+      timeout = 0,
+      background_colour = "#000000",
+    }
   },
+
+  {
+    "folke/which-key.nvim",
+    keys = { "<leader>", },
+    event = function() return { "User AstroFile" } end,
+    opts = {
+      plugins = {
+          marks = false, -- shows a list of your marks on ' and `
+          registers = false, -- shows your registers on " in NORMAL or <C-r> in INSERT mode
+      },
+      layout = {
+        height = { min = 4, max = 15 },
+      },
+      window = {
+        winblend = 20, -- value between 0-100 0 for fully opaque and 100 for fully transparent
+      },
+    }
+  },
+
+  {
+    "mfussenegger/nvim-dap",
+    dependencies = {
+      { "theHamsta/nvim-dap-virtual-text", config = true },
+    }
+  },
+
+  {
+    "lewis6991/gitsigns.nvim",
+    opts = {
+      signcolumn = false,
+      numhl = true,
+      current_line_blame_opts = { ignore_whitespace = true },
+    },
+  },
+
+  {
+    "nvim-neo-tree/neo-tree.nvim",
+    opts = {
+      filesystem = {
+        filtered_items = {
+          always_show = { ".github", ".gitignore" },
+        },
+          follow_current_file = {
+            -- enabled = false,
+            leave_dirs_open = true, -- `false` closes auto expanded dirs, such as with `:Neotree reveal`
+          },
+      },
+    },
+  },
+  -- You can also easily customize additional setup of plugins that is outside of the plugin's setup call
 
   {
     "windwp/nvim-autopairs",
@@ -80,6 +106,15 @@ return {
         -- disable for .vim files, but it work for another filetypes
         Rule("a", "a", "-vim")
       )
+      require('nvim-autopairs').remove_rule([[`]])
+      require('nvim-autopairs').setup({
+        disable_filetype = {
+            "tex", "TelescopePrompt", "text",
+            "neo-tree-popup", "spectre_panel",
+            "nofile", "quickfix", "prompt",
+            -- "dressinginput", "DressingSelect",
+        },
+      })
     end,
   },
 }

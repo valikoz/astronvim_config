@@ -1,74 +1,194 @@
-if true then return {} end -- WARN: REMOVE THIS LINE TO ACTIVATE THIS FILE
-
--- AstroCore provides a central place to modify mappings, vim options, autocommands, and more!
--- Configuration documentation can be found with `:h astrocore`
--- NOTE: We highly recommend setting up the Lua Language Server (`:LspInstall lua_ls`)
---       as this provides autocomplete and documentation while editing
-
 ---@type LazySpec
 return {
   "AstroNvim/astrocore",
-  ---@type AstroCoreOpts
-  opts = {
-    -- Configure core features of AstroNvim
-    features = {
-      large_buf = { size = 1024 * 500, lines = 10000 }, -- set global limits for large files for disabling features like treesitter
-      autopairs = true, -- enable autopairs at start
-      cmp = true, -- enable completion at start
-      diagnostics_mode = 3, -- diagnostic mode on start (0 = off, 1 = no signs/virtual text, 2 = no virtual text, 3 = on)
-      highlighturl = true, -- highlight URLs at start
-      notifications = true, -- enable notifications at start
-    },
-    -- Diagnostics configuration (for vim.diagnostics.config({...})) when diagnostics are on
-    diagnostics = {
-      virtual_text = true,
-      underline = true,
-    },
-    -- vim options can be configured here
-    options = {
-      opt = { -- vim.opt.<key>
-        relativenumber = true, -- sets vim.opt.relativenumber
-        number = true, -- sets vim.opt.number
-        spell = false, -- sets vim.opt.spell
-        signcolumn = "auto", -- sets vim.opt.signcolumn to auto
-        wrap = false, -- sets vim.opt.wrap
+  ---@param opts AstroCoreOpts
+  opts = function(_, opts)
+    local function yaml_ft(path, bufnr)
+      local buf_text = table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), "\n")
+      if
+        -- check if file is in roles, tasks, or handlers folder
+        vim.regex("(tasks\\|roles\\|handlers)/"):match_str(path)
+        -- check for known ansible playbook text and if found, return yaml.ansible
+        or vim.regex("hosts:\\|tasks:"):match_str(buf_text)
+      then
+        return "yaml.ansible"
+      elseif vim.regex("AWSTemplateFormatVersion:"):match_str(buf_text) then
+        return "yaml.cfn"
+      else -- return yaml if nothing else
+        return "yaml"
+      end
+    end
+    opts = require("astrocore").extend_tbl(opts, {
+      rooter = {
+        ignore = { servers = { "julials" } },
+        autochdir = true,
       },
-      g = { -- vim.g.<key>
-        -- configure global vim variables (vim.g)
-        -- NOTE: `mapleader` and `maplocalleader` must be set in the AstroNvim opts or before `lazy.setup`
-        -- This can be found in the `lua/lazy_setup.lua` file
-      },
-    },
-    -- Mappings can be configured through AstroCore as well.
-    -- NOTE: keycodes follow the casing in the vimdocs. For example, `<Leader>` must be capitalized
-    mappings = {
-      -- first key is the mode
-      n = {
-        -- second key is the lefthand side of the map
-
-        -- navigate buffer tabs with `H` and `L`
-        L = { function() require("astrocore.buffer").nav(vim.v.count1) end, desc = "Next buffer" },
-        H = { function() require("astrocore.buffer").nav(-vim.v.count1) end, desc = "Previous buffer" },
-
-        -- mappings seen under group name "Buffer"
-        ["<Leader>bD"] = {
-          function()
-            require("astroui.status.heirline").buffer_picker(
-              function(bufnr) require("astrocore.buffer").close(bufnr) end
-            )
-          end,
-          desc = "Pick to close",
+      options = {
+        opt = {
+          conceallevel = 1, -- enable conceal
+          list = true, -- show whitespace characters
+          listchars = { tab = "│→", extends = "⟩", precedes = "⟨", trail = "·", nbsp = "␣" },
+          showbreak = "↪ ",
+          -- showtabline = (vim.t.bufs and #vim.t.bufs > 1) and 2 or 1,
+          -- spellfile = vim.fn.expand "~/.config/nvim/spell/en.utf-8.add",
+          -- thesaurus = vim.fn.expand "~/.config/nvim/spell/mthesaur.txt",
+          splitkeep = "screen",
+          swapfile = false,
+          wrap = true, -- soft wrap lines
+          scrolloff = 5,
+          relativenumber = false,
+          shortmess = "filnxtToOFs",
+          cmdheight = 1,
+          fillchars = "",
         },
-        -- tables with just a `desc` key will be registered with which-key if it's installed
-        -- this is useful for naming menus
-        ["<Leader>b"] = { desc = "Buffers" },
-        -- quick save
-        -- ["<C-s>"] = { ":w!<cr>", desc = "Save File" },  -- change description but the same command
+        g = {
+          python3_host_prog = 0,
+          loaded_ruby_provider = 0,
+          loaded_perl_provider = 0,
+        },
       },
-      t = {
-        -- setting a mapping to false will disable it
-        -- ["<esc>"] = false,
+      signs = {
+        BqfSign = { text = " " .. require("astroui").get_icon "Selected", texthl = "BqfSign" },
       },
-    },
-  },
+      autocmds = {
+        auto_spell = {
+          {
+            event = "FileType",
+            desc = "Enable wrap and spell for text like documents",
+            pattern = { "gitcommit", "markdown", "text", "plaintex" },
+            callback = function()
+              vim.opt_local.wrap = true
+              vim.opt_local.spell = true
+            end,
+          },
+        },
+      },
+      diagnostics = { update_in_insert = false },
+      filetypes = {
+        extension = {
+          mdx = "markdown.mdx",
+          qmd = "markdown",
+          yml = yaml_ft,
+          yaml = yaml_ft,
+        },
+        filename = {
+          ["docker-compose.yml"] = "yaml.docker-compose",
+          ["docker-compose.yaml"] = "yaml.docker-compose",
+        },
+        pattern = {
+          ["/tmp/neomutt.*"] = "markdown",
+        },
+      },
+      mappings = {
+        n = {
+          -- disable default bindings
+          ["<C-Q>"] = false,
+          ["<C-S>"] = false,
+          ["q:"] = ":",
+          -- better buffer navigation
+          ["]b"] = false,
+          ["[b"] = false,
+          ["L"] = { function() require("astrocore.buffer").nav(vim.v.count1) end, desc = "Next buffer" },
+          ["H"] = { function() require("astrocore.buffer").nav(-vim.v.count1) end, desc = "Previous buffer" },
+          -- better search
+          -- better increment/decrement
+          ["-"] = { "<C-x>", desc = "Descrement number" },
+          ["+"] = { "<C-a>", desc = "Increment number" },
+          ["<Leader>n"] = { "<Cmd>enew<CR>", desc = "New File" },
+          ["<Leader>N"] = { "<Cmd>tabnew<CR>", desc = "New Tab" },
+          ["<Leader><CR>"] = { '<Esc>/<++><CR>"_c4l', desc = "Next Template" },
+          ["<Leader>."] = { "<Cmd>cd %:p:h<CR>", desc = "Set CWD" },
+          -- luasnip
+          ["<Leader>L"] = { desc = " LuaSnip", },
+          ["<Leader>Le"] = {
+            function() require("luasnip.loaders").edit_snippet_files {} end,
+            desc = "Edit snipppets"
+          },
+          ["<Leader>Lo"] = {
+            function() require("luasnip.extras.snippet_list").open() end,
+            desc = "Open snippet list"
+          },
+          -- ["<Leader><LocalLeader>"] = { desc = "󰃢 Remove" },
+          ["<Leader><LocalLeader>s"] = { function()
+              local save_cursor = vim.fn.getpos "."
+              vim.cmd [[%s/\s\+$//e|nohlsearch]]
+              vim.fn.setpos(".", save_cursor)
+            end,
+            desc = "Remove whitespaces"
+          },
+          ["<Leader><LocalLeader>c"] = { function()
+              local save_cursor = vim.fn.getpos "."
+              vim.cmd [[%s/\r\+$//e|nohlsearch]]
+              vim.fn.setpos(".", save_cursor)
+            end,
+            desc = "Remove carriages"
+          },
+        },
+        i = {
+          ["<C-S>"] = { function() vim.lsp.buf.signature_help() end, desc = "Signature Help" },
+          ["<S-Tab>"] = { "<C-V><Tab>", desc = "Tab character" },
+        },
+        -- terminal mappings
+        t = {
+          ["<C-BS>"] = { "<C-\\><C-n>", desc = "Terminal normal mode" },
+          ["<Esc><Esc>"] = { "<C-\\><C-n>:q<CR>", desc = "Terminal quit" },
+        },
+        x = {
+          ["<C-S>"] = false,
+          -- better increment/decrement
+          ["+"] = { "g<C-a>", desc = "Increment number" },
+          ["-"] = { "g<C-x>", desc = "Descrement number" },
+          -- line text-objects
+          ["iL"] = { ":<C-u>normal! $v^<CR>", desc = "Inside line text object" },
+          ["aL"] = { ":<C-u>normal! $v0<CR>", desc = "Around line text object" },
+        },
+        o = {
+          -- line text-objects
+          ["iL"] = { ":<C-u>normal! $v^<CR>", desc = "Inside line text object" },
+          ["aL"] = { ":<C-u>normal! $v0<CR>", desc = "Around line text object" },
+        },
+        ia = vim.fn.has "nvim-0.10" == 1 and {
+          mktmpl = { function() return "<++>" end, desc = "Insert <++>", expr = true },
+          ldate = { function() return os.date "%Y/%m/%d %H:%M:%S -" end, desc = "Y/m/d H:M:S -", expr = true },
+          ndate = { function() return os.date "%Y-%m-%d" end, desc = "Y-m-d", expr = true },
+          xdate = { function() return os.date "%m/%d/%y" end, desc = "m/d/y", expr = true },
+          fdate = { function() return os.date "%B %d, %Y" end, desc = "B d, Y", expr = true },
+          Xdate = { function() return os.date "%H:%M" end, desc = "H:M", expr = true },
+          Fdate = { function() return os.date "%H:%M:%S" end, desc = "H:M:S", expr = true },
+        } or nil,
+      },
+    }) --[[@as AstroCoreOpts]]
+
+    local function better_search(key)
+      return function()
+        local searched, error =
+          pcall(vim.cmd.normal, { args = { (vim.v.count > 0 and vim.v.count or "") .. key }, bang = true })
+        if not searched and type(error) == "string" then require("astrocore").notify(error, vim.log.levels.ERROR) end
+      end
+    end
+    opts.mappings.n.n = { better_search "n", desc = "Next search" }
+    opts.mappings.n.N = { better_search "N", desc = "Previous search" }
+
+    -- add line text object
+    for lhs, rhs in pairs {
+      il = { ":<C-u>normal! $v^<CR>", desc = "inside line" },
+      al = { ":<C-u>normal! V<CR>", desc = "around line" },
+    } do
+      opts.mappings.o[lhs] = rhs
+      opts.mappings.x[lhs] = rhs
+    end
+
+    -- add missing in between and arround two character pairs
+    for _, char in ipairs { "_", "-", ".", ":", ",", ";", "|", "/", "\\", "*", "+", "%", "`", "?" } do
+      for lhs, rhs in pairs {
+        ["i" .. char] = { (":<C-u>silent! normal! f%sF%slvt%s<CR>"):format(char, char, char), desc = "inside " .. char },
+        ["a" .. char] = { (":<C-u>silent! normal! f%sF%svf%s<CR>"):format(char, char, char), desc = "around " .. char },
+      } do
+        opts.mappings.o[lhs] = rhs
+        opts.mappings.x[lhs] = rhs
+      end
+    end
+
+    return opts
+  end,
 }

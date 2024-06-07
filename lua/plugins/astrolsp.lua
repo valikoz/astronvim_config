@@ -1,108 +1,162 @@
-if true then return {} end -- WARN: REMOVE THIS LINE TO ACTIVATE THIS FILE
-
--- AstroLSP allows you to customize the features in AstroNvim's LSP configuration engine
--- Configuration documentation can be found with `:h astrolsp`
--- NOTE: We highly recommend setting up the Lua Language Server (`:LspInstall lua_ls`)
---       as this provides autocomplete and documentation while editing
-
 ---@type LazySpec
 return {
   "AstroNvim/astrolsp",
   ---@type AstroLSPOpts
   opts = {
-    -- Configuration table of features provided by AstroLSP
-    features = {
-      autoformat = true, -- enable or disable auto formatting on start
-      codelens = true, -- enable/disable codelens refresh on start
-      inlay_hints = false, -- enable/disable inlay hints on start
-      semantic_tokens = true, -- enable/disable semantic token highlighting
-    },
-    -- customize lsp formatting options
     formatting = {
-      -- control auto formatting on save
       format_on_save = {
-        enabled = true, -- enable or disable format on save globally
-        allow_filetypes = { -- enable format on save for specified filetypes only
-          -- "go",
-        },
+        enabled = true, -- enable format on save
         ignore_filetypes = { -- disable format on save for specified filetypes
-          -- "python",
+          "lua",
+          "python",
         },
       },
-      disabled = { -- disable formatting capabilities for the listed language servers
-        -- disable lua_ls formatting capability if you want to use StyLua to format your lua code
-        -- "lua_ls",
+      -- List of language server client names will be disabled with you format your
+      -- code either on save, with <leader>lf, or with :Format.
+      disabled = {
+        "lua_ls",
+        "rust_analyzer",
       },
-      timeout_ms = 1000, -- default format timeout
-      -- filter = function(client) -- fully override the default formatting function
-      --   return true
-      -- end
+      filter = function(client)
+        -- only enable null-ls for javascript files
+        if vim.bo.filetype == "javascript" then
+          return client.name == "null-ls"
+        end
+
+        -- enable all other clients
+        return true
+      end,
     },
-    -- enable servers that you already have installed without mason
-    servers = {
-      -- "pyright"
+    autocmds = {
+      no_insert_inlay_hints = {
+        cond = vim.lsp.inlay_hint and "textDocument/inlayHint" or false,
+        {
+          event = "InsertEnter",
+          desc = "disable inlay hints on insert",
+          callback = function(args)
+            local filter = { bufnr = args.buf }
+            if vim.lsp.inlay_hint.is_enabled(filter) then
+              vim.lsp.inlay_hint.enable(false, filter)
+              vim.api.nvim_create_autocmd("InsertLeave", {
+                buffer = args.buf,
+                once = true,
+                callback = function() vim.lsp.inlay_hint.enable(true, filter) end,
+              })
+            end
+          end,
+        },
+      },
     },
-    -- customize language server configuration options passed to `lspconfig`
+    servers = { "texlab", },
     ---@diagnostic disable: missing-fields
     config = {
-      -- clangd = { capabilities = { offsetEncoding = "utf-8" } },
-    },
-    -- customize how language servers are attached
-    handlers = {
-      -- a function without a key is simply the default handler, functions take two parameters, the server name and the configured options table for that server
-      -- function(server, opts) require("lspconfig")[server].setup(opts) end
-
-      -- the key is the server that is being setup with `lspconfig`
-      -- rust_analyzer = false, -- setting a handler to false will disable the set up of that language server
-      -- pyright = function(_, opts) require("lspconfig").pyright.setup(opts) end -- or a custom handler function can be passed
-    },
-    -- Configure buffer local auto commands to add when attaching a language server
-    autocmds = {
-      -- first key is the `augroup` to add the auto commands to (:h augroup)
-      lsp_document_highlight = {
-        -- Optional condition to create/delete auto command group
-        -- can either be a string of a client capability or a function of `fun(client, bufnr): boolean`
-        -- condition will be resolved for each client on each execution and if it ever fails for all clients,
-        -- the auto commands will be deleted for that buffer
-        cond = "textDocument/documentHighlight",
-        -- cond = function(client, bufnr) return client.name == "lua_ls" end,
-        -- list of auto commands to set
-        {
-          -- events to trigger
-          event = { "CursorHold", "CursorHoldI" },
-          -- the rest of the autocmd options (:h nvim_create_autocmd)
-          desc = "Document Highlighting",
-          callback = function() vim.lsp.buf.document_highlight() end,
+      basedpyright = {
+        before_init = function(_, c)
+          if not c.settings then c.settings = {} end
+          if not c.settings.python then c.settings.python = {} end
+          c.settings.python.pythonPath = vim.fn.exepath "python"
+        end,
+        settings = {
+          basedpyright = {
+            analysis = {
+              typeCheckingMode = "basic",
+              autoImportCompletions = true,
+              stubPath = vim.env.HOME .. "/typings",
+              diagnosticSeverityOverrides = {
+                reportUnusedImport = "information",
+                reportUnusedFunction = "information",
+                reportUnusedVariable = "information",
+                reportGeneralTypeIssues = "none",
+                reportOptionalMemberAccess = "none",
+                reportOptionalSubscript = "none",
+                reportPrivateImportUsage = "none",
+              },
+            },
+          },
         },
-        {
-          event = { "CursorMoved", "CursorMovedI", "BufLeave" },
-          desc = "Document Highlighting Clear",
-          callback = function() vim.lsp.buf.clear_references() end,
+      },
+      clangd = { capabilities = { offsetEncoding = "utf-8" } },
+      gopls = {
+        settings = {
+          gopls = {
+            codelenses = {
+              generate = true, -- show the `go generate` lens.
+              gc_details = true, -- Show a code lens toggling the display of gc's choices.
+              test = true,
+              tidy = true,
+              vendor = true,
+              regenerate_cgo = true,
+              upgrade_dependency = true,
+            },
+            hints = {
+              assignVariableTypes = true,
+              compositeLiteralFields = true,
+              compositeLiteralTypes = true,
+              constantValues = true,
+              functionTypeParameters = true,
+              parameterNames = true,
+              rangeVariableTypes = true,
+            },
+            semanticTokens = true,
+          },
+        },
+      },
+      lua_ls = { autostart = false, settings = { Lua = { hint = { enable = true, arrayIndex = "Disable" } } } },
+      rust_analyzer = { cmd = { "rustup", "run", "stable", "rust-analyzer", }, flags = { debounce_text_changes = 150, }, },
+      markdown_oxide = { capabilities = { workspace = { didChangeWatchedFiles = { dynamicRegistration = true } } } },
+      ruff = { on_attach = function(client) client.server_capabilities.hoverProvider = false end },
+      taplo = { evenBetterToml = { schema = { catalogs = { "https://www.schemastore.org/api/json/catalog.json" } } } },
+      texlab = {
+        on_attach = function(_, bufnr)
+          require("astrocore").set_mappings({
+            n = {
+              ["<Leader>lB"] = { "<Cmd>TexlabBuild<CR>", desc = "LaTeX Build" },
+              ["<Leader>lF"] = { "<Cmd>TexlabForward<CR>", desc = "LaTeX Forward Search" },
+            },
+          }, { buffer = bufnr })
+        end,
+        settings = {
+          texlab = {
+            build = { onSave = false },
+            forwardSearch = { executable = "sioyek", args = {
+              "--reuse-window",
+              "--execute-command",
+              "toggle_synctex",
+              "--forward-search-file",
+              "%f",
+              "--forward-search-line",
+              "%l",
+              "%p",
+            } },
+          },
+        },
+      },
+      vtsls = {
+        settings = {
+          typescript = {
+            inlayHints = {
+              parameterNames = { enabled = "all", suppressWhenArgumentMatchesName = false },
+              parameterTypes = { enabled = true },
+              variableTypes = { enabled = true, suppressWhenTypeMatchesName = false },
+              propertyDeclarationTypes = { enabled = true },
+              functionLikeReturnTypes = { enabled = true },
+              enumMemberValues = { enabled = true },
+            },
+            updateImportsOnFileMove = { enabled = "always" },
+          },
+          javascript = {
+            inlayHints = {
+              parameterNames = { enabled = "all", suppressWhenArgumentMatchesName = false },
+              parameterTypes = { enabled = true },
+              variableTypes = { enabled = true, suppressWhenTypeMatchesName = false },
+              propertyDeclarationTypes = { enabled = true },
+              functionLikeReturnTypes = { enabled = true },
+              enumMemberValues = { enabled = true },
+            },
+            updateImportsOnFileMove = { enabled = "always" },
+          },
         },
       },
     },
-    -- mappings to be set up on attaching of a language server
-    mappings = {
-      n = {
-        gl = { function() vim.diagnostic.open_float() end, desc = "Hover diagnostics" },
-        -- a `cond` key can provided as the string of a server capability to be required to attach, or a function with `client` and `bufnr` parameters from the `on_attach` that returns a boolean
-        -- gD = {
-        --   function() vim.lsp.buf.declaration() end,
-        --   desc = "Declaration of current symbol",
-        --   cond = "textDocument/declaration",
-        -- },
-        -- ["<Leader>uY"] = {
-        --   function() require("astrolsp.toggles").buffer_semantic_tokens() end,
-        --   desc = "Toggle LSP semantic highlight (buffer)",
-        --   cond = function(client) return client.server_capabilities.semanticTokensProvider and vim.lsp.semantic_tokens end,
-        -- },
-      },
-    },
-    -- A custom `on_attach` function to be run after the default `on_attach` function
-    -- takes two parameters `client` and `bufnr`  (`:h lspconfig-setup`)
-    on_attach = function(client, bufnr)
-      -- this would disable semanticTokensProvider for all clients
-      -- client.server_capabilities.semanticTokensProvider = nil
-    end,
   },
 }
